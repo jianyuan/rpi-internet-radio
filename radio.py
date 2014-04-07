@@ -6,13 +6,18 @@ from time import sleep
 import RPi.GPIO as GPIO
 import atexit
 import re
+import sys
+import os
 
 # Config
 SPEAKER_RELAY_CHANNEL = 11
+SHUTDOWN_BUTTON_CHANNEL = 9
+SHUTDOWN_BUTTON_PRESS_DURATION = 5
 
 # Set up Raspberry Pi GPIOs
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(SPEAKER_RELAY_CHANNEL, GPIO.OUT, initial=GPIO.HIGH)
+GPIO.setup(SHUTDOWN_BUTTON_CHANNEL, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 # Set up LCD screen
 lcd = Adafruit_CharLCD(pins_db=[23, 17, 27, 22])
@@ -34,10 +39,22 @@ def mpd_disconnect():
 	client.disconnect()
 
 last_song = None
+shutdown_button_active_duration = 0
+
 turn_on_speaker()
 
 # Poll for current song
 while True:
+	if GPIO.input(SHUTDOWN_BUTTON_CHANNEL):
+		shutdown_button_active_duration += 1
+
+		if shutdown_button_active_duration >= SHUTDOWN_BUTTON_PRESS_DURATION:
+			turn_off_speaker()
+			os.system('sudo shutdown -h now')
+			sys.exit()
+	else:
+		shutdown_button_active_duration = 0
+
         current_song = client.currentsong()['title'].split(' - ', 2)
 
         if current_song != last_song:
